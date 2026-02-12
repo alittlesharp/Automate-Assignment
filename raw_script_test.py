@@ -80,23 +80,37 @@ W_min = pl.LpVariable("W_min", lowBound=0)
 capacity = {r: None for r in R}
 
 # Set remaining capacity for Action reviews out of 5900. -550 for Chris, Tim, Sadnan for other tasks.
-special_caps = {
-    "Bryant": 5315,     # less 2nd looks and NRO cap (225)
-    "Girton": 5570,     # less 2nd looks
-    "Harding": 5350,
-    "Marth": 5780,      # less 2nd looks
-    "Mehanovic": 5350,
-    "Mock": 5780,       # less 2nd looks
-    "Perry": 3172,      # less NRO cap (2728)
-    "Rulapaugh": 4599,  # less 2nd looks and NRO cap (1091)
-    "Skelly": 4762,     # 5350 less NRO cap (588)
-    "Verhest": 5780,    # less 2nd looks
-}
+#special_caps = {
+#    "Bryant": 5315,     # less 2nd looks and NRO cap (225)
+#    "Girton": 5570,     # less 2nd looks
+#    "Harding": 5350,
+#    "Marth": 5780,      # less 2nd looks
+#    "Mehanovic": 5350,
+#    "Mock": 5780,       # less 2nd looks
+#    "Perry": 3172,      # less NRO cap (2728)
+#    "Rulapaugh": 4599,  # less 2nd looks and NRO cap (1091)
+#    "Skelly": 4762,     # 5350 less NRO cap (588)
+#    "Verhest": 5780,    # less 2nd looks
+#}
 
 # Update the capacity dict for only those listed
-for r, cap in special_caps.items():
-    if r in capacity:
-        capacity[r] = float(cap)
+#for r, cap in special_caps.items():
+#    if r in capacity:
+#        capacity[r] = float(cap)
+
+# Preload code. *IMPORTANT* USED ONLY IF CAPACITY ISN'T USED.
+preload = {
+    "Bryant": 585,
+    "Girton": 330,
+    "Harding": 550,
+    "Marth": 120,
+    "Mehanovic": 550,
+    "Mock": 120,
+    "Perry": 2728,
+    "Rulapaugh": 1301,
+    "Skelly": 1138,
+    "Verherst": 120
+}
 
 # Manager unique list. Manager spread vars, removed "lowBound=0, upBound=1" since it felt redundant
 # y is a dictionary with (managers, R) as key and 0 or 1 as value, it is specific to PuLP
@@ -120,10 +134,11 @@ for t in T:
 #reviewers in final solution, if capacity specified (not none), a hard constraint is added
 for r in R:
     workload_r = pl.lpSum(m[t] * x[t][r] for t in T)
-    model += W_max >= workload_r
-    model += W_min <= workload_r
-    if capacity[r] is not None:
-        model += workload_r <= capacity[r]
+    effective = workload_r + preload.get(r, 0.0)
+    model += W_max >= effective
+    model += W_min <= effective
+#    if capacity[r] is not None:
+#        model += workload_r <= capacity[r]
 
 # This does not limit the spread. Instead, it is validating the data.
 for mgr_ in managers:

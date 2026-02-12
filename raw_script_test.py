@@ -79,6 +79,25 @@ W_min = pl.LpVariable("W_min", lowBound=0)
 # Hard constraint can be made by updating capacity dict with a specific limit
 capacity = {r: None for r in R}
 
+# Set remaining capacity for Action reviews out of 5900. -550 for Chris, Tim, Sadnan for other tasks.
+special_caps = {
+    "Bryant": 5315,     # less 2nd looks and NRO cap (225)
+    "Girton": 5570,     # less 2nd looks
+    "Harding": 5350,
+    "Marth": 5780,      # less 2nd looks
+    "Mehanovic": 5350,
+    "Mock": 5780,       # less 2nd looks
+    "Perry": 3172,      # less NRO cap (2728)
+    "Rulapaugh": 4599,  # less 2nd looks and NRO cap (1091)
+    "Skelly": 4762,     # 5350 less NRO cap (588)
+    "Verhest": 5780,    # less 2nd looks
+}
+
+# Update the capacity dict for only those listed
+for r, cap in special_caps.items():
+    if r in capacity:
+        capacity[r] = float(cap)
+
 # Manager unique list. Manager spread vars, removed "lowBound=0, upBound=1" since it felt redundant
 # y is a dictionary with (managers, R) as key and 0 or 1 as value, it is specific to PuLP
 managers = sorted(tasks["manager"].unique())

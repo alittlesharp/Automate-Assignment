@@ -16,6 +16,6 @@ def excel_to_csv(input_excel, output_csv):
     except Exception as e:
         print(f"Error: {e}")
 
-input_file = 'tasks.xlsx'
+input_file = 'jan_tasks.xlsx'
 output_file = 'tasks.csv'
 excel_to_csv(input_file, output_file)

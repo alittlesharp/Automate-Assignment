@@ -22,7 +22,7 @@ def csv_to_excel(input_csv, output_excel):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-input_csv = 'new_workload_summary.csv'
-output_excel = 'new_workload_summary.xlsx'
+input_csv = 'new_assignments.csv'
+output_excel = 'new_assignments.xlsx'
 
 csv_to_excel(input_csv, output_excel)

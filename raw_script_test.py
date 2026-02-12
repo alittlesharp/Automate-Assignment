@@ -37,6 +37,8 @@ R = reviewers
 m = {t: float(tasks.loc[t, "est_mins"]) for t in T}
 mgr = {t: tasks.loc[t, "manager"] for t in T}
 wtype = {t: tasks.loc[t, "work_type"] for t in T}
+#Added assoc parameter dictionary for later distribution.
+assoc = {t: tasks.loc[t, "associate"] for t in T}
 #print(m)
 #print(mgr)
 #print(wtype)
@@ -77,7 +79,7 @@ W_min = pl.LpVariable("W_min", lowBound=0)
 
 # Creating capacity dictionary, were a reviewer key has none attributed to it.
 # Hard constraint can be made by updating capacity dict with a specific limit
-capacity = {r: None for r in R}
+# capacity = {r: None for r in R}
 
 # Set remaining capacity for Action reviews out of 5900. -550 for Chris, Tim, Sadnan for other tasks.
 #special_caps = {
@@ -158,6 +160,7 @@ for t in T:
     assigned_r = max(R, key=lambda r: pl.value(x[t][r]))
     assignment.append({
         "task_idx": t,
+        "associate": assoc[t],
         "work_type": wtype[t],
         "manager": mgr[t],
         "qa_reviewer": assigned_r,

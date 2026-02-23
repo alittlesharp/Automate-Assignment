@@ -3,26 +3,22 @@ import pulp as pl
 
 #load tasks.csv
 tasks = pd.read_csv("tasks.csv")
-# print(tasks.head())
 
-# Define reviewers list (from your csv file), the set piece ensures a unique element
+# Define reviewers list (from csv file), set ensures a unique element
 reviewers = sorted(set(tasks.get("reviewer", [])))
-#print(reviewers)
 
-#list mapping dictionary of csv file where keys map to a list of associated values.
+# Assign sorted dictionary (reviewer, work_type) from tasks CSV to reviewer_expertise var.
 reviewer_expertise = tasks.groupby('reviewer')['work_type'].unique().apply(sorted).to_dict()
-#print(reviewer_expertise)
 
-#finds all the unique combinations of rapport from dataframe (via tasks csv)
+# Finds all the unique combinations of rapport from dataframe (via tasks csv)
 rapport_data = tasks[['reviewer', 'manager']]
 associate_rapport = rapport_data.drop_duplicates()
 
-#convert the unique combinations to a dictionary, where keys are tuples of reviewer and manager and values are True
-#dictionary past_experience ONLY contain entries for combinations present in csv file. See suitability later.
+# Convert the unique combinations to a dictionary, where keys are tuples of reviewer and manager and values are True
+# Dictionary past_experience ONLY contain entries for combinations present in csv file. See suitability later.
 past_experience = {}
 for row in associate_rapport.itertuples(name='Rapports'):
     past_experience[(row.reviewer, row.manager)] = True
-#print(past_experience)
 
 # In linear programming B, P, and lambda are typical notations for basic, cost (price), and Lagrange multipliers.
 # Think of B_Rapport as a constant value we give to relationships that we want to keep up. P_spread is a variable
@@ -32,28 +28,24 @@ B_RAPPORT = 5
 P_SPREAD = 2
 LAMBDA_BAL = 0.1
 
-# Build index sets, T will hold row identifier but no data, R holds the unique list of reviewers
+# Build task index set
 task_id = list(tasks.index)
-# R = reviewers
 
-# Parameters, making dictionaries of specific values from task csv, T from the iterable index set above
+# Parameters, making dictionaries of specific values from task csv
 est_min = {t: float(tasks.loc[t, "est_mins"]) for t in task_id}
 mgr = {t: tasks.loc[t, "manager"] for t in task_id}
 discipline = {t: tasks.loc[t, "work_type"] for t in task_id}
-#Added assoc parameter dictionary for later distribution.
+# Assoc parameter dictionary was added here for distribution. Comments could be attached in the same way.
 assoc = {t: tasks.loc[t, "associate"] for t in task_id}
-#print(m)
-#print(mgr)
-#print(wtype)
 
-# *Added*--- Feasibility check: tasks with zero eligible reviewers ---
+# Feasibility check. Tasks with zero eligible reviewers will print a warning.
 for t in task_id:
     eligible = [r for r in reviewers if discipline[t] in reviewer_expertise.get(r, [])]
     if not eligible:
         print(f"WARNING: Task {t} ({discipline[t]}) has NO eligible reviewers!")
 
-# Suitability, that is it should return weight or preference if there is experience. The false in the get method
-# is saying if the key is found it returns the key's value, but if it is NOT found it returns the default value (False)
+# Suitability, should return weight or preference if there is experience. The false in the get method means that if
+# the key is found it returns the key's value, but if it is NOT found it returns the default value (False).
 def suitability(t, r):
     if past_experience.get((r, mgr[t]), False):
         return B_RAPPORT
@@ -61,7 +53,6 @@ def suitability(t, r):
         return 0
 
 suit_dict = {(t, r): suitability(t, r) for t in task_id for r in reviewers}
-#print(s)
 
 # Establishes model
 model = pl.LpProblem("BalancedReviewerAssignment", pl.LpMaximize)
@@ -69,7 +60,7 @@ model = pl.LpProblem("BalancedReviewerAssignment", pl.LpMaximize)
 # Decision var, yes or no, removed "lowBound=0, upBound=1", constraint_x used to align expertise
 constraint_x = pl.LpVariable.dicts("constraint_x", (task_id, reviewers), cat="Binary")
 
-# HARD CONSTRAINT: Expertise gating
+# HARD CONSTRAINT. Expertise.
 for t in task_id:
     t_disc = discipline[t]
     for r in reviewers:
@@ -79,29 +70,6 @@ for t in task_id:
 # Workload bounds, holds optimization variable for model calculation
 W_max = pl.LpVariable("W_max", lowBound=0)
 W_min = pl.LpVariable("W_min", lowBound=0)
-
-# Creating capacity dictionary, were a reviewer key has none attributed to it.
-# Hard constraint can be made by updating capacity dict with a specific limit
-# capacity = {r: None for r in R}
-
-# Set remaining capacity for Action reviews out of 5900. -550 for Chris, Tim, Sadnan for other tasks.
-#special_caps = {
-#    "Bryant": 5315,     # less 2nd looks and NRO cap (225)
-#    "Girton": 5570,     # less 2nd looks
-#    "Harding": 5350,
-#    "Marth": 5780,      # less 2nd looks
-#    "Mehanovic": 5350,
-#    "Mock": 5780,       # less 2nd looks
-#    "Perry": 3172,      # less NRO cap (2728)
-#    "Rulapaugh": 4599,  # less 2nd looks and NRO cap (1091)
-#    "Skelly": 4762,     # 5350 less NRO cap (588)
-#    "Verhest": 5780,    # less 2nd looks
-#}
-
-# Update the capacity dict for only those listed
-#for r, cap in special_caps.items():
-#    if r in capacity:
-#        capacity[r] = float(cap)
 
 # Preload code. Manually adjusted currently to account for special disc (2nd look, recovery, etc.) and projects.
 preload = {
@@ -122,7 +90,7 @@ preload = {
 managers = sorted(tasks["manager"].unique())
 constraint_y = pl.LpVariable.dicts("constraint_y", (managers, reviewers), cat="Binary")
 
-# Objective, maximize expression with three competing priorities. (1) Favor rapport. (2) Minimize workload imbalance.
+# Maximize expression with three competing priorities. (1) Favor rapport. (2) Minimize workload imbalance.
 # (3) Reduce manager/reviewer spread.
 model += (
     pl.lpSum(suit_dict[(t, r)] * constraint_x[t][r] for t in task_id for r in reviewers)
@@ -141,8 +109,6 @@ for r in reviewers:
     effective = rev_workload + preload.get(r, 0.0)
     model += W_max >= effective
     model += W_min <= effective
-#    if capacity[r] is not None:
-#        model += workload_r <= capacity[r]
 
 # This does not limit the spread. Instead, it is validating data (expertise and rapport).
 for mgr_ in managers:

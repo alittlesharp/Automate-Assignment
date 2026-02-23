@@ -14,40 +14,43 @@ reviewer_expertise = tasks.groupby('reviewer')['work_type'].unique().apply(sorte
 #print(reviewer_expertise)
 
 #finds all the unique combinations of rapport from dataframe (via tasks csv)
-rapport_combos = tasks[['reviewer', 'manager']]
-spec_rapport_combos = rapport_combos.drop_duplicates()
+rapport_data = tasks[['reviewer', 'manager']]
+associate_rapport = rapport_data.drop_duplicates()
 
 #convert the unique combinations to a dictionary, where keys are tuples of reviewer and manager and values are True
-#dictionary past_experience ONLY contain entries for combinations present in csv file
+#dictionary past_experience ONLY contain entries for combinations present in csv file. See suitability later.
 past_experience = {}
-for row in spec_rapport_combos.itertuples(name='Rapports'):
+for row in associate_rapport.itertuples(name='Rapports'):
     past_experience[(row.reviewer, row.manager)] = True
 #print(past_experience)
 
-# Weights
+# In linear programming B, P, and lambda are typical notations for basic, cost (price), and Lagrange multipliers.
+# Think of B_Rapport as a constant value we give to relationships that we want to keep up. P_spread is a variable
+# related to manager spread (later used to ensure there's only 2 associates per manager). LAMBDA_BAL is used in the
+# LP model to optimize results (basically to reduce workload imbalance between associates). A low value means slack.
 B_RAPPORT = 5
 P_SPREAD = 2
 LAMBDA_BAL = 0.1
 
 # Build index sets, T will hold row identifier but no data, R holds the unique list of reviewers
-T = list(tasks.index)
-R = reviewers
+task_id = list(tasks.index)
+# R = reviewers
 
 # Parameters, making dictionaries of specific values from task csv, T from the iterable index set above
-m = {t: float(tasks.loc[t, "est_mins"]) for t in T}
-mgr = {t: tasks.loc[t, "manager"] for t in T}
-wtype = {t: tasks.loc[t, "work_type"] for t in T}
+est_min = {t: float(tasks.loc[t, "est_mins"]) for t in task_id}
+mgr = {t: tasks.loc[t, "manager"] for t in task_id}
+discipline = {t: tasks.loc[t, "work_type"] for t in task_id}
 #Added assoc parameter dictionary for later distribution.
-assoc = {t: tasks.loc[t, "associate"] for t in T}
+assoc = {t: tasks.loc[t, "associate"] for t in task_id}
 #print(m)
 #print(mgr)
 #print(wtype)
 
 # *Added*--- Feasibility check: tasks with zero eligible reviewers ---
-for t in T:
-    eligible = [r for r in R if wtype[t] in reviewer_expertise.get(r, [])]
+for t in task_id:
+    eligible = [r for r in reviewers if discipline[t] in reviewer_expertise.get(r, [])]
     if not eligible:
-        print(f"WARNING: Task {t} ({wtype[t]}) has NO eligible reviewers!")
+        print(f"WARNING: Task {t} ({discipline[t]}) has NO eligible reviewers!")
 
 # Suitability, that is it should return weight or preference if there is experience. The false in the get method
 # is saying if the key is found it returns the key's value, but if it is NOT found it returns the default value (False)
@@ -57,23 +60,23 @@ def suitability(t, r):
     else:
         return 0
 
-s = {(t, r): suitability(t, r) for t in T for r in R}
+suit_dict = {(t, r): suitability(t, r) for t in task_id for r in reviewers}
 #print(s)
 
-# Model (Note to self: Linear Programming is incredible and it terrifies me.)
+# Establishes model
 model = pl.LpProblem("BalancedReviewerAssignment", pl.LpMaximize)
 
-# Decision vars, binary is yes or no, removed "lowBound=0, upBound=1" since it felt redundant
-x = pl.LpVariable.dicts("x", (T, R), cat="Binary")
+# Decision var, yes or no, removed "lowBound=0, upBound=1", constraint_x used to align expertise
+constraint_x = pl.LpVariable.dicts("constraint_x", (task_id, reviewers), cat="Binary")
 
 # HARD CONSTRAINT: Expertise gating
-for t in T:
-    wt = wtype[t]
-    for r in R:
-        if wt not in reviewer_expertise.get(r, []):
-            x[t][r].upBound = 0  # disallow assignment, funny way of saying it
+for t in task_id:
+    t_disc = discipline[t]
+    for r in reviewers:
+        if t_disc not in reviewer_expertise.get(r, []):
+            constraint_x[t][r].upBound = 0  # prevents assignment
 
-# Workload bounds, holds the optimization variable, cat = continuous because it is not defined
+# Workload bounds, holds optimization variable for model calculation
 W_max = pl.LpVariable("W_max", lowBound=0)
 W_min = pl.LpVariable("W_min", lowBound=0)
 
@@ -100,7 +103,7 @@ W_min = pl.LpVariable("W_min", lowBound=0)
 #    if r in capacity:
 #        capacity[r] = float(cap)
 
-# Preload code. *IMPORTANT* USED ONLY IF CAPACITY ISN'T USED.
+# Preload code. Manually adjusted currently to account for special disc (2nd look, recovery, etc.) and projects.
 preload = {
     "Bryant": 585,
     "Girton": 330,
@@ -114,81 +117,80 @@ preload = {
     "Verherst": 120
 }
 
-# Manager unique list. Manager spread vars, removed "lowBound=0, upBound=1" since it felt redundant
-# y is a dictionary with (managers, R) as key and 0 or 1 as value, it is specific to PuLP
+# Manager unique list. Manager spread var, removed "lowBound=0, upBound=1" since redundant
+# constraint_y is a dictionary with (managers, R) as key and 0 or 1 as value, constraint_y used to align rapport
 managers = sorted(tasks["manager"].unique())
-y = pl.LpVariable.dicts("y", (managers, R), cat="Binary")
+constraint_y = pl.LpVariable.dicts("constraint_y", (managers, reviewers), cat="Binary")
 
-# Objective, maximize expression with three competing priorities. (1) Favoring rapport. (2) Minimize workload imbalance.
+# Objective, maximize expression with three competing priorities. (1) Favor rapport. (2) Minimize workload imbalance.
 # (3) Reduce manager/reviewer spread.
 model += (
-    pl.lpSum(s[(t, r)] * x[t][r] for t in T for r in R)
+    pl.lpSum(suit_dict[(t, r)] * constraint_x[t][r] for t in task_id for r in reviewers)
     - LAMBDA_BAL * (W_max - W_min)
-    - P_SPREAD * pl.lpSum(y[mgr_][r] for mgr_ in managers for r in R)
+    - P_SPREAD * pl.lpSum(constraint_y[mgr_][r] for mgr_ in managers for r in reviewers)
 )
 
-# Constraints
 # Each task is assigned only once.
-for t in T:
-    model += pl.lpSum(x[t][r] for r in R) == 1
+for t in task_id:
+    model += pl.lpSum(constraint_x[t][r] for r in reviewers) == 1
 
-#summing time of each task (m[t]), min max tracking will be the total workloads among all
-#reviewers in final solution, if capacity specified (not none), a hard constraint is added
-for r in R:
-    workload_r = pl.lpSum(m[t] * x[t][r] for t in T)
-    effective = workload_r + preload.get(r, 0.0)
+# For each reviewer, assigning task if suitable, summing time for each task, then factoring in preload work and then
+# balancing the distribution. This code is running a calculation.
+for r in reviewers:
+    rev_workload = pl.lpSum(est_min[t] * constraint_x[t][r] for t in task_id)
+    effective = rev_workload + preload.get(r, 0.0)
     model += W_max >= effective
     model += W_min <= effective
 #    if capacity[r] is not None:
 #        model += workload_r <= capacity[r]
 
-# This does not limit the spread. Instead, it is validating the data.
+# This does not limit the spread. Instead, it is validating data (expertise and rapport).
 for mgr_ in managers:
-    tasks_of_mgr = [t for t in T if mgr[t] == mgr_]
-    for r in R:
+    tasks_of_mgr = [t for t in task_id if mgr[t] == mgr_]
+    for r in reviewers:
         for t in tasks_of_mgr:
-            model += y[mgr_][r] >= x[t][r]
+            model += constraint_y[mgr_][r] >= constraint_x[t][r]
 
-# Solve. Hold on to your butts. With time limit because otherwise it will go on forever.
-# ***THIS IS WHERE I STOPPED THE DEEP DIVE*** Appending some assistance.
+# Solve the model outlined above. Set time limit of 60 sec. Otherwise, it continued to run. 60 secs may be overkill.
 print("\nSolving model...")
 model.solve(pl.PULP_CBC_CMD(msg=True, timeLimit=60))
 
-# Extract results
+# Extract results into list
 assignment = []
-for t in T:
-    assigned_r = max(R, key=lambda r: pl.value(x[t][r]))
+for t in task_id:
+    assigned_r = max(reviewers, key=lambda r: pl.value(constraint_x[t][r]))
     assignment.append({
         "task_idx": t,
         "associate": assoc[t],
-        "work_type": wtype[t],
+        "work_type": discipline[t],
         "manager": mgr[t],
         "qa_reviewer": assigned_r,
-        "est_mins": m[t],
-        "score": s[(t, assigned_r)]
+        "est_mins": est_min[t],
+        "score": suit_dict[(t, assigned_r)]
     })
 
-result_df = pd.DataFrame(assignment)
+# Creates table from the list above
+results_assign = pd.DataFrame(assignment)
 
-# Print results
+# Print assignment results
 print("\nObjective value:", pl.value(model.objective))
 print("\nAssignments:")
-print(result_df)
+print(results_assign)
 
-# Workload summary
-wl = (
-    result_df.groupby("qa_reviewer")["est_mins"]
+# Workload summary, changes column from estimated minutes to total minutes. Print workload results.
+results_workload = (
+    results_assign.groupby("qa_reviewer")["est_mins"]
     .sum()
     .reset_index()
     .rename(columns={"est_mins": "total_mins"})
 )
 print("\nWorkload Summary:")
-print(wl)
+print(results_workload)
 
 # Save assignments to CSV
-result_df.to_csv("new_assignments.csv", index=False)
+results_assign.to_csv("new_assignments.csv", index=False)
 
 # Save workload summary to CSV
-wl.to_csv("new_workload_summary.csv", index=False)
+results_workload.to_csv("new_workload_summary.csv", index=False)
 
 print("\nFiles saved: new_assignments.csv and new_workload_summary.csv")

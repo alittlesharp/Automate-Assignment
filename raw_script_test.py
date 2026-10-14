@@ -73,16 +73,16 @@ W_min = pl.LpVariable("W_min", lowBound=0)
 
 # Preload code. Manually adjusted currently to account for special disc (2nd look, recovery, etc.) and projects.
 preload = {
-    "Bryant": 585,
-    "Girton": 330,
-    "Harding": 550,
+    "Bryant": 360,
+    "Girton": 120,
+    "Harding": 360,
     "Marth": 120,
-    "Mehanovic": 550,
+    # "Mehanovic": 4750,
     "Mock": 120,
-    "Perry": 2728,
-    "Rulapaugh": 1301,
-    "Skelly": 1138,
-    "Verherst": 120
+    "Perry": 2584,
+    "Rulapaugh": 1261,
+    "Skelly": 894,
+    "Verhelst": 288,
 }
 
 # Manager unique list. Manager spread var, removed "lowBound=0, upBound=1" since redundant

@@ -10,7 +10,7 @@ a balanced spread of workload between QA reviewers.
 Prior to running the program, update the preload dictionary in the python script with workload minutes that are
 NOT related to Action reviews. You can get the minutes directly from the prior assignment sheet once you factor
 out the Action reviews and add in upcoming 2nd look minutes.
-The QA reviewers on special projects (currently, Mehanovic, Harding, Skelly) have another 550 minutes preloaded.
+The QA reviewers on special projects have additional pre-defined minutes preloaded.
 
 ***Limitations***
 - By design, the program targets Action reviews only. Other work (2nd look reviews, recovery, special projects) are
@@ -22,6 +22,9 @@ correct est_mins for the month (varies between open and closed), and then make s
 that are accurate (possible for QA users to incorrectly fill out prior month's assignment sheet).
 - The current design requires the person running this program to update the preload data month to month. This
 change is minimal, but the programmer should ensure the minutes they add are accurate before running the model.
+- Assignment results must be manually uploaded into an assignment sheet template with existing macros. In order to copy
+and paste the results accurately, sort the new assignments by discipline first and then associate. Do the same to the
+target template. Then copy the QA reviewers name column into the template (after 2nd looks, before Recovery).
 
 ***Future Implementations***
 - Future implementations may use more CSV files to execute (expertise and rapport files) in addition to task file.

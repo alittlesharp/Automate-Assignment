@@ -151,7 +151,7 @@ print(results_workload)
 # Save assignments to CSV
 results_assign.to_csv("new_assignments.csv", index=False)
 
-# Save workload summary to CSV
-results_workload.to_csv("new_workload_summary.csv", index=False)
+# Save workload summary to CSV. Workload summary not requested by partners at this time.
+# results_workload.to_csv("new_workload_summary.csv", index=False)
 
 print("\nFiles saved: new_assignments.csv and new_workload_summary.csv")

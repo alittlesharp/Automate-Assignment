@@ -10,7 +10,7 @@ a balanced spread of workload between QA reviewers.
 Prior to running the program, update the preload dictionary in the python script with workload minutes that are
 NOT related to Action reviews. You can get the minutes directly from the prior assignment sheet once you factor
 out the Action reviews and add in upcoming 2nd look minutes.
-The QA reviewers on special projects (currently, Mehanovic, Harding, Skelly) have another 550 minutes preloaded.
+The QA reviewers on special projects have another pre-defined minutes preloaded.
 
 ***Limitations***
 - By design, the program targets Action reviews only. Other work (2nd look reviews, recovery, special projects) are
